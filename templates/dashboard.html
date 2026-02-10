@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Stock Trading Dashboard</title>
+
+<style>
+
+
+
+/* HEADER */
+
+header{
+background:#d9f2e6;   /* light green */
+color:#0b3d2e;
+padding:12px 20px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.logout{
+background:green;
+color:white;
+border:none;
+padding:5px 10px;
+font-size:12px;
+cursor:pointer;
+width:auto;
+margin:0;           /* IMPORTANT */
+}
+
+
+/* LAYOUT */
+
+.container{
+padding:20px;
+}
+
+.balance{
+background:white;
+padding:12px;
+margin-bottom:15px;
+border-radius:6px;
+box-shadow:0 0 5px #ccc;
+}
+
+/* GRID CARDS */
+
+.grid{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:20px;
+}
+
+.feature-card{
+background:#d9f2e6;      /* light green */
+padding:40px;
+text-align:center;
+border-radius:20px;
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
+cursor:pointer;
+transition:.3s;
+min-height:240px;
+}
+
+
+
+.feature-card:hover{
+transform:translateY(-5px);
+}
+
+.feature-card img{
+width:160px;     /* bigger */
+height:160px;    /* bigger */
+border-radius:50%;
+padding:8px;
+
+}
+
+.section{
+margin-top:20px;
+background:white;
+padding:15px;
+border-radius:8px;
+display:none;
+box-shadow:0 0 5px #ccc;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:10px;
+}
+
+th,td{
+border:1px solid #ddd;
+padding:8px;
+text-align:center;
+}
+
+input,select,button{
+padding:7px;
+margin:5px 0;
+width:100%;
+}
+
+.buy{background:green;color:white;border:none;}
+.sell{background:#444;color:white;border:none;}
+</style>
+</head>
+
+<body>
+
+<header>
+<h3>Hello {{ username }} 👋</h3>
+<button class="logout" onclick="window.location='/logout'">Logout</button>
+
+
+</header>
+
+<div class="container">
+
+<div class="balance">
+Wallet Balance: ₹<span id="balance">10000</span>
+</div>
+
+<!-- FOUR CARDS -->
+
+<div class="grid">
+
+<div class="feature-card" onclick="showMarket()">
+<img src="https://thumbs.dreamstime.com/b/stock-market-report-d-illustration-stock-market-report-117993771.jpg">
+<h3>Market</h3>
+</div>
+
+<div class="feature-card" onclick="showBuy()">
+<img src="https://media.istockphoto.com/id/867941110/vector/stock-exchange.jpg?s=612x612&w=0&k=20&c=DKvdbZg3XR0JQsN59dF-kSoU9Gz62t6Io-IsJP88pVw=">
+<h3>Buy</h3>
+</div>
+
+<div class="feature-card" onclick="showSell()">
+<img src="https://media.istockphoto.com/id/516682755/photo/stock-market-concept.jpg?s=612x612&w=0&k=20&c=bUuZlAsgUfudpSldgTwY_OTXF1VMSbNblbAhXJmHuso=">
+<h3>Sell</h3>
+</div>
+
+<div class="feature-card" onclick="showPortfolio()">
+<img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
+<h3>Portfolio</h3>
+</div>
+
+</div>
+
+<!-- MARKET -->
+
+<div id="market" class="section">
+<h3>Market Stocks</h3>
+<table>
+<tr><th>Stock</th><th>Price</th></tr>
+<tbody id="marketTable"></tbody>
+</table>
+</div>
+
+<!-- BUY -->
+
+<div id="buy" class="section">
+<h3>Buy Stock</h3>
+
+<select id="buyStock"></select>
+<input type="number" id="buyQty" placeholder="Quantity">
+
+<button class="buy" onclick="buyStock()">Buy</button>
+<p id="buyInfo"></p>
+</div>
+
+<!-- SELL -->
+
+<div id="sell" class="section">
+<h3>Sell Stock</h3>
+
+<select id="sellStock"></select>
+<input type="number" id="sellQty" placeholder="Quantity">
+
+<button class="sell" onclick="sellStock()">Sell</button>
+<p id="sellInfo"></p>
+</div>
+
+<!-- PORTFOLIO -->
+
+<div id="portfolio" class="section">
+<h3>Portfolio</h3>
+
+<table>
+<tr><th>Stock</th><th>Qty</th><th>Price</th></tr>
+<tbody id="portfolioTable"></tbody>
+</table>
+
+<h3>Trade History</h3>
+
+<table>
+<tr><th>Stock</th><th>Qty</th><th>Amount</th><th>Type</th></tr>
+<tbody id="historyTable"></tbody>
+</table>
+</div>
+
+</div>
+
+<script>
+
+/* DUMMY STOCKS */
+
+let stocks=[
+{symbol:"IBM",price:135},
+{symbol:"APPLE",price:170},
+{symbol:"MICROSOFT",price:310},
+{symbol:"TESLA",price:250},
+{symbol:"AMAZON",price:145},
+{symbol:"GOOGLE",price:140},
+{symbol:"META",price:290},
+{symbol:"NVIDA",price:600},
+{symbol:"ORACLE",price:115},
+{symbol:"INTEL",price:42}
+];
+
+let balance=10000;
+let portfolio=[];
+let history=[];
+
+/* NAV */
+
+function hideAll(){
+["market","buy","sell","portfolio"].forEach(i=>document.getElementById(i).style.display="none");
+}
+
+function showMarket(){hideAll();document.getElementById("market").style.display="block";loadMarket();}
+function showBuy(){hideAll();document.getElementById("buy").style.display="block";loadDropdowns();}
+function showSell(){hideAll();document.getElementById("sell").style.display="block";loadDropdowns();}
+function showPortfolio(){hideAll();document.getElementById("portfolio").style.display="block";renderPortfolio();renderHistory();}
+function logout(){window.location="login.html";}
+
+/* LOAD MARKET */
+
+function loadMarket(){
+let html="";
+stocks.forEach(s=>{
+html+=`<tr><td>${s.symbol}</td><td>₹${s.price}</td></tr>`;
+});
+document.getElementById("marketTable").innerHTML=html;
+}
+
+/* DROPDOWNS */
+
+function loadDropdowns(){
+let opt="";
+stocks.forEach(s=>{
+opt+=`<option value="${s.symbol}">${s.symbol}</option>`;
+});
+document.getElementById("buyStock").innerHTML=opt;
+document.getElementById("sellStock").innerHTML=opt;
+}
+
+/* BUY */
+
+function buyStock(){
+
+let stock=document.getElementById("buyStock").value;
+let qty=parseInt(document.getElementById("buyQty").value);
+
+if(!qty||qty<=0){alert("Enter quantity");return;}
+
+let obj=stocks.find(s=>s.symbol==stock);
+let total=obj.price*qty;
+
+if(total>balance){alert("Insufficient balance");return;}
+
+balance-=total;
+document.getElementById("balance").innerText=balance;
+
+let existing=portfolio.find(p=>p.stock==stock);
+if(existing) existing.qty+=qty;
+else portfolio.push({stock,qty,price:obj.price});
+
+history.push({stock,qty,amount:total,type:"BUY"});
+document.getElementById("buyInfo").innerText=`₹${total} deducted from wallet`;
+}
+
+/* SELL */
+
+function sellStock(){
+
+let stock=document.getElementById("sellStock").value;
+let qty=parseInt(document.getElementById("sellQty").value);
+
+let item=portfolio.find(p=>p.stock==stock);
+
+if(!item||item.qty<qty){alert("Not enough stocks");return;}
+
+let obj=stocks.find(s=>s.symbol==stock);
+let total=obj.price*qty;
+
+item.qty-=qty;
+balance+=total;
+document.getElementById("balance").innerText=balance;
+
+history.push({stock,qty,amount:total,type:"SELL"});
+document.getElementById("sellInfo").innerText=`₹${total} added to wallet`;
+}
+
+/* PORTFOLIO */
+
+function renderPortfolio(){
+let html="";
+portfolio.forEach(p=>{
+if(p.qty>0)
+html+=`<tr><td>${p.stock}</td><td>${p.qty}</td><td>${p.price}</td></tr>`;
+});
+document.getElementById("portfolioTable").innerHTML=html;
+}
+
+/* HISTORY */
+
+function renderHistory(){
+let html="";
+history.forEach(h=>{
+html+=`<tr><td>${h.stock}</td><td>${h.qty}</td><td>${h.amount}</td><td>${h.type}</td></tr>`;
+});
+document.getElementById("historyTable").innerHTML=html;
+}
+
+</script>
+
+</body>
+</html>
