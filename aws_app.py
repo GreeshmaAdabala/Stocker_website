@@ -1,97 +1,168 @@
-from flask import Flask, render_template, request, redirect, session
-import boto3
-import uuid
+from flask import Flask, render_template, request, redirect, session, jsonify
+import boto3, uuid, datetime
 
 app = Flask(__name__)
 app.secret_key = "secret123"
 
-# AWS Clients
 dynamodb = boto3.resource("dynamodb", region_name="ap-south-1")
-sns = boto3.client("sns", region_name="ap-south-1")
 
-TABLE_NAME = "Users"
-SNS_TOPIC_ARN = "arn:aws:sns:ap-south-1:ACCOUNT_ID:TOPIC_NAME"
-
-
-table = dynamodb.Table(TABLE_NAME)
-
-# ---------------- HOME ----------------
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/about")
-def about():
-    return render_template("about.html")
-
-@app.route("/contact")
-def contact():
-    return render_template("contact.html")
-
-# ---------------- REGISTER ----------------
-
-@app.route("/register", methods=["GET","POST"])
-def register():
-
-    if request.method == "POST":
-
-        username = request.form.get("username")
-        email = request.form.get("email")
-        password = request.form.get("password")
-
-        user_id = str(uuid.uuid4())
-
-        # Save to DynamoDB
-        table.put_item(
-            Item={
-                "user_id": user_id,
-                "username": username,
-                "email": email,
-                "password": password
-            }
-        )
-
-        # SNS Notification
-        sns.publish(
-            TopicArn=SNS_TOPIC_ARN,
-            Message=f"New user registered: {username}",
-            Subject="New Registration"
-        )
-
-        session["user"] = username
-        session["email"] = email
-
-        return redirect("/dashboard")
-
-    return render_template("register.html")
+users = dynamodb.Table("Users")
+portfolio = dynamodb.Table("Portfolio")
+trades = dynamodb.Table("Trades")
 
 # ---------------- LOGIN ----------------
 
 @app.route("/login", methods=["GET","POST"])
 def login():
 
-    if request.method == "POST":
+    if request.method=="POST":
+        email=request.form.get("email")
+        username=request.form.get("username")
 
-        username = request.form.get("username")
-        email = request.form.get("email")
-
-        session["user"] = username
-        session["email"] = email
+        session["email"]=email
+        session["user"]=username
 
         return redirect("/dashboard")
 
     return render_template("login.html")
+
+# ---------------- REGISTER ----------------
+
+@app.route("/register", methods=["GET","POST"])
+def register():
+
+    if request.method=="POST":
+
+        email=request.form.get("email")
+        username=request.form.get("username")
+        password=request.form.get("password")
+
+        users.put_item(Item={
+            "email":email,
+            "username":username,
+            "password":password,
+            "wallet":10000
+        })
+
+        session["email"]=email
+        session["user"]=username
+
+        return redirect("/dashboard")
+
+    return render_template("register.html")
 
 # ---------------- DASHBOARD ----------------
 
 @app.route("/dashboard")
 def dashboard():
 
-    if "user" not in session:
+    if "email" not in session:
         return redirect("/login")
 
-    return render_template("dashboard.html", username=session["user"])
+    user=users.get_item(Key={"email":session["email"]})["Item"]
+
+    return render_template("dashboard.html",
+        username=user["username"],
+        wallet=user["wallet"]
+    )
+
+# ---------------- BUY ----------------
+
+@app.route("/buy", methods=["POST"])
+def buy():
+
+    email=session["email"]
+
+    stock=request.json["stock"]
+    qty=int(request.json["qty"])
+    price=int(request.json["price"])
+
+    total=qty*price
+
+    user=users.get_item(Key={"email":email})["Item"]
+
+    if user["wallet"]<total:
+        return jsonify({"error":"Low balance"})
+
+    # update wallet
+    users.update_item(
+        Key={"email":email},
+        UpdateExpression="SET wallet = wallet - :t",
+        ExpressionAttributeValues={":t":total}
+    )
+
+    # portfolio
+    portfolio.put_item(Item={
+        "email":email,
+        "stock":stock,
+        "qty":qty,
+        "price":price
+    })
+
+    # history
+    trades.put_item(Item={
+        "email":email,
+        "trade_id":str(uuid.uuid4()),
+        "stock":stock,
+        "qty":qty,
+        "amount":total,
+        "type":"BUY",
+        "timestamp":str(datetime.datetime.now())
+    })
+
+    return jsonify({"success":True})
+
+# ---------------- SELL ----------------
+
+@app.route("/sell", methods=["POST"])
+def sell():
+
+    email=session["email"]
+
+    stock=request.json["stock"]
+    qty=int(request.json["qty"])
+    price=int(request.json["price"])
+
+    total=qty*price
+
+    users.update_item(
+        Key={"email":email},
+        UpdateExpression="SET wallet = wallet + :t",
+        ExpressionAttributeValues={":t":total}
+    )
+
+    trades.put_item(Item={
+        "email":email,
+        "trade_id":str(uuid.uuid4()),
+        "stock":stock,
+        "qty":qty,
+        "amount":total,
+        "type":"SELL",
+        "timestamp":str(datetime.datetime.now())
+    })
+
+    return jsonify({"success":True})
+
+# ---------------- PORTFOLIO ----------------
+
+@app.route("/portfolio")
+def get_portfolio():
+
+    email=session["email"]
+
+    data=portfolio.query(
+        KeyConditionExpression=boto3.dynamodb.conditions.Key("email").eq(email)
+    )
+
+    return jsonify(data["Items"])
+
+# ---------------- WALLET ----------------
+
+@app.route("/wallet")
+def wallet():
+
+    user=users.get_item(Key={"email":session["email"]})["Item"]
+    return jsonify({"wallet":user["wallet"]})
 
 # ---------------- LOGOUT ----------------
 
@@ -100,7 +171,5 @@ def logout():
     session.clear()
     return redirect("/login")
 
-# ---------------- RUN ----------------
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=5000)
