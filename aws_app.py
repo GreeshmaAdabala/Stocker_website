@@ -1,10 +1,13 @@
 from flask import Flask, render_template, request, redirect, session, jsonify
 import boto3, uuid, datetime
+from boto3.dynamodb.conditions import Key
+
 
 app = Flask(__name__)
 app.secret_key = "secret123"
 
-dynamodb = boto3.resource("dynamodb", region_name="ap-south-1")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+
 
 users = dynamodb.Table("Users")
 portfolio = dynamodb.Table("Portfolio")
@@ -150,11 +153,12 @@ def get_portfolio():
 
     email=session["email"]
 
-    data=portfolio.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key("email").eq(email)
+    data = portfolio.query(
+        KeyConditionExpression=Key("email").eq(email)
     )
 
     return jsonify(data["Items"])
+
 
 # ---------------- WALLET ----------------
 
