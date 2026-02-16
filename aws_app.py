@@ -9,7 +9,7 @@ app.secret_key = "secret123"
 dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 sns = boto3.client("sns", region_name="us-east-1")
 
-SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:XXXX:stocktrading"   # Replace with real ARN
+SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:864981741884:stocktrading"   # Replace with real ARN
 
 # DynamoDB Tables
 users = dynamodb.Table("Users")
