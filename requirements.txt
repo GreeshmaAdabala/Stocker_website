@@ -1,5 +1,2 @@
-python 
-html
-css
-javascript
-aws
+flask
+boto3
